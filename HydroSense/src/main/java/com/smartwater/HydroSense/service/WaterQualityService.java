@@ -20,7 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,6 +35,9 @@ public class WaterQualityService {
     private final UserRepository userRepository;
     private final AlertService alertService;
     private final EmailService emailService;
+
+    // Tracks the last known status per device to enable state-based alert logic
+    private final Map<String, WaterQualityStatus> devicePreviousStatusMap = new ConcurrentHashMap<>();
 
     // Threshold values from application.properties
     @Value("${water.threshold.temperature.min}")
@@ -99,10 +104,28 @@ public class WaterQualityService {
 
         // Save reading
         reading = readingRepository.save(reading);
-        log.info("Saved water quality reading with ID: {}, Status: {}", reading.getId(), status);
+        log.info("Saved water quality reading with ID: {}, Device: {}, Status: {}",
+                reading.getId(), reading.getDeviceId(), status);
 
-        // Generate alerts based on status
-        alertService.generateAlerts(reading, approachingUnsafe);
+        // State-based alert logic per device
+        String deviceId = sensorData.getDeviceId();
+        WaterQualityStatus previousStatus = devicePreviousStatusMap.get(deviceId);
+
+        if (status == WaterQualityStatus.UNSAFE && previousStatus != WaterQualityStatus.UNSAFE) {
+            // SAFE → UNSAFE transition: send unsafe alert
+            log.info("Device {} transitioned to UNSAFE. Sending alert.", deviceId);
+            alertService.generateUnsafeAlert(reading, approachingUnsafe);
+        } else if (status == WaterQualityStatus.SAFE && previousStatus == WaterQualityStatus.UNSAFE) {
+            // UNSAFE → SAFE transition: send safe recovery notification
+            log.info("Device {} recovered to SAFE. Sending recovery notification.", deviceId);
+            alertService.generateSafeRecoveryNotification(reading);
+        } else if (status == WaterQualityStatus.SAFE && approachingUnsafe) {
+            // Still safe but approaching unsafe: warn authorities only
+            alertService.generateApproachingUnsafeAlert(reading);
+        }
+
+        // Update device state
+        devicePreviousStatusMap.put(deviceId, status);
 
         return mapToResponse(reading);
     }
@@ -118,9 +141,9 @@ public class WaterQualityService {
         boolean isDoSafe = data.getDissolvedOxygen() >= doMin && data.getDissolvedOxygen() <= doMax;
 
         if (isTemperatureSafe && isPhSafe && isTdsSafe && isTurbiditySafe && isDoSafe) {
-            return WaterQualityStatus.LESS_POLLUTED;
+            return WaterQualityStatus.SAFE;
         }
-        return WaterQualityStatus.HIGHLY_POLLUTED;
+        return WaterQualityStatus.UNSAFE;
     }
 
     /**
@@ -182,7 +205,7 @@ public class WaterQualityService {
     private void handlePollutionEvent(WaterQualityReading reading, WaterQualityStatus status) {
         Optional<PollutionEvent> activeEvent = pollutionEventRepository.findTopByIsActiveTrueOrderByStartTimeDesc();
 
-        if (status == WaterQualityStatus.HIGHLY_POLLUTED) {
+        if (status == WaterQualityStatus.UNSAFE) {
             if (activeEvent.isPresent()) {
                 // Add reading to existing event
                 PollutionEvent event = activeEvent.get();
@@ -208,9 +231,6 @@ public class WaterQualityService {
             // Water is safe - check if we should close the active event
             if (activeEvent.isPresent()) {
                 PollutionEvent event = activeEvent.get();
-                // Resolve the event after 3 consecutive safe readings
-                // For simplicity, we'll resolve after 1 safe reading
-                // In production, you might want to wait for multiple safe readings
                 event.resolve();
                 pollutionEventRepository.save(event);
                 log.info("Resolved pollution event ID: {}", event.getId());
@@ -259,7 +279,7 @@ public class WaterQualityService {
         WaterQualityReading reading = latestReading.get();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a");
 
-        if (reading.getStatus() == WaterQualityStatus.LESS_POLLUTED) {
+        if (reading.getStatus() == WaterQualityStatus.SAFE) {
             return CitizenWaterStatusDTO.builder()
                     .status("SAFE")
                     .message("Water quality is within safe limits.")
@@ -298,12 +318,60 @@ public class WaterQualityService {
     }
 
     /**
+     * Get all readings for a specific device
+     */
+    public List<WaterQualityResponse> getReadingsByDevice(String deviceId) {
+        return readingRepository.findByDeviceIdAndIsDeletedFalseOrderByRecordedAtDesc(deviceId)
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get the latest reading for a specific device
+     */
+    public WaterQualityResponse getCurrentStatusByDevice(String deviceId) {
+        return readingRepository.findTopByDeviceIdAndIsDeletedFalseOrderByRecordedAtDesc(deviceId)
+                .map(this::mapToResponse)
+                .orElse(null);
+    }
+
+    /**
+     * Get readings for a specific device filtered by status (SAFE or UNSAFE)
+     */
+    public List<WaterQualityResponse> getReadingsByDeviceAndStatus(String deviceId, WaterQualityStatus status) {
+        return readingRepository.findByDeviceIdAndStatusAndIsDeletedFalseOrderByRecordedAtDesc(deviceId, status)
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get readings for a specific device within a time range
+     */
+    public List<WaterQualityResponse> getReadingsByDeviceAndTimeRange(
+            String deviceId, LocalDateTime start, LocalDateTime end) {
+        return readingRepository
+                .findByDeviceIdAndRecordedAtBetweenAndIsDeletedFalseOrderByRecordedAtDesc(deviceId, start, end)
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get all distinct active device IDs
+     */
+    public List<String> getAllActiveDeviceIds() {
+        return readingRepository.findAllActiveDeviceIds();
+    }
+
+    /**
      * Map entity to response DTO
      */
     private WaterQualityResponse mapToResponse(WaterQualityReading reading) {
-        String statusMessage = reading.getStatus() == WaterQualityStatus.LESS_POLLUTED
+        String statusMessage = reading.getStatus() == WaterQualityStatus.SAFE
                 ? "Water quality is within safe limits"
-                : "Water is highly polluted - unsafe for use";
+                : "Water is unsafe - one or more parameters exceed defined thresholds";
 
         return WaterQualityResponse.builder()
                 .id(reading.getId())
@@ -320,5 +388,40 @@ public class WaterQualityService {
                 .deviceId(reading.getDeviceId())
                 .statusMessage(statusMessage)
                 .build();
+    }
+}
+
+    // -------------------------------------------------------------------------
+    // Device-based and status-based segregation methods (Change 1.2)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Get all readings for a specific device (device-based segregation)
+     */
+    public List<WaterQualityResponse> getReadingsByDevice(String deviceId) {
+        return readingRepository.findByDeviceIdAndIsDeletedFalseOrderByRecordedAtDesc(deviceId)
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get readings for a specific device filtered by status
+     * Supports both device-wise and status-wise segregation simultaneously
+     */
+    public List<WaterQualityResponse> getReadingsByDeviceAndStatus(String deviceId, WaterQualityStatus status) {
+        return readingRepository.findByDeviceIdAndStatusAndIsDeletedFalseOrderByRecordedAtDesc(deviceId, status)
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get the latest reading for a specific device
+     */
+    public WaterQualityResponse getCurrentStatusByDevice(String deviceId) {
+        return readingRepository.findTopByDeviceIdAndIsDeletedFalseOrderByRecordedAtDesc(deviceId)
+                .map(this::mapToResponse)
+                .orElse(null);
     }
 }

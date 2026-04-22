@@ -45,7 +45,10 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
-                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/v1/auth/register").permitAll()
+                        .requestMatchers("/api/v1/auth/login").permitAll()
+                        .requestMatchers("/api/v1/auth/forgot-password").permitAll()
+                        .requestMatchers("/api/v1/auth/reset-password").permitAll()
                         .requestMatchers("/api/v1/water/current").permitAll()
                         .requestMatchers("/api/v1/water/citizen-status").permitAll()
                         // ESP32 sensor endpoint (API key protected separately)
@@ -54,7 +57,8 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         // Error page (needed to return proper error responses)
                         .requestMatchers("/error").permitAll()
-                        // Authority only endpoints
+                        // Super Admin only endpoints
+                        .requestMatchers("/api/v1/auth/admin/**").hasRole("SUPER_ADMIN")
                         // Authority only endpoints
                         .requestMatchers("/api/v1/histogram/**").hasRole("AUTHORITY")
                         .requestMatchers("/api/v1/alerts/authority/**").hasRole("AUTHORITY")

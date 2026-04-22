@@ -83,4 +83,23 @@ public interface WaterQualityReadingRepository extends JpaRepository<WaterQualit
 
     // Get readings by device
     List<WaterQualityReading> findByDeviceIdAndIsDeletedFalseOrderByRecordedAtDesc(String deviceId);
+
+    // Get readings by device and status (device + status segregation)
+    List<WaterQualityReading> findByDeviceIdAndStatusAndIsDeletedFalseOrderByRecordedAtDesc(
+            String deviceId, WaterQualityStatus status);
+
+    // Get the most recent reading for a specific device
+    Optional<WaterQualityReading> findTopByDeviceIdAndIsDeletedFalseOrderByRecordedAtDesc(String deviceId);
+
+    // Get readings by status across all devices
+    List<WaterQualityReading> findByStatusAndIsDeletedFalseOrderByDeviceIdAscRecordedAtDesc(
+            WaterQualityStatus status);
+
+    // Get readings by device within a time range
+    List<WaterQualityReading> findByDeviceIdAndRecordedAtBetweenAndIsDeletedFalseOrderByRecordedAtDesc(
+            String deviceId, LocalDateTime start, LocalDateTime end);
+
+    // Get all distinct active device IDs
+    @Query("SELECT DISTINCT r.deviceId FROM WaterQualityReading r WHERE r.isDeleted = false AND r.deviceId IS NOT NULL")
+    List<String> findAllActiveDeviceIds();
 }

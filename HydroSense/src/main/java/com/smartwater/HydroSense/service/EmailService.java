@@ -274,4 +274,114 @@ public class EmailService {
         log.info("Pollution alert email sent to: {}", to);
     }
 
+    /**
+     * Send safe recovery notification email when water quality returns to normal
+     */
+    @Async
+    public void sendSafeRecoveryAlert(String to, WaterQualityReading reading) {
+        String subject = "✅ Water Quality Restored - Safe for Use";
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a");
+        String recordedTime = reading.getRecordedAt() != null
+                ? reading.getRecordedAt().format(formatter)
+                : "N/A";
+
+        String content = String.format(
+                """
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <meta charset="UTF-8">
+                            <style>
+                                body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 0; }
+                                .container { width: 100%%; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+                                .header { background-color: #28a745; padding: 30px; text-align: center; }
+                                .header h1 { color: #ffffff; margin: 0; font-size: 24px; letter-spacing: 1px; }
+                                .content { padding: 40px 30px; color: #333333; line-height: 1.6; }
+                                .safe-box { background-color: #d4edda; border-left: 5px solid #28a745; padding: 15px; margin: 20px 0; border-radius: 4px; color: #155724; }
+                                .params-table { width: 100%%; border-collapse: collapse; margin: 20px 0; }
+                                .params-table th, .params-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+                                .params-table th { background-color: #f8f9fa; color: #333; }
+                                .params-table tr:hover { background-color: #f5f5f5; }
+                                .footer { background-color: #f4f7f6; padding: 20px; text-align: center; font-size: 12px; color: #888888; }
+                            </style>
+                        </head>
+                        <body>
+                            <br><br>
+                            <div class="container">
+                                <div class="header">
+                                    <h1>✅ Water Quality Restored</h1>
+                                </div>
+
+                                <div class="content">
+                                    <h2>Good news!</h2>
+                                    <p>Our monitoring system confirms that water quality on <strong>Device %s</strong> has returned to safe levels.</p>
+
+                                    <div class="safe-box">
+                                        <strong>✅ Status:</strong> Water is now SAFE for regular use and consumption.
+                                    </div>
+
+                                    <h3>Current Water Quality Parameters</h3>
+                                    <table class="params-table">
+                                        <tr>
+                                            <th>Parameter</th>
+                                            <th>Value</th>
+                                            <th>Unit</th>
+                                        </tr>
+                                        <tr>
+                                            <td>Temperature</td>
+                                            <td>%.2f</td>
+                                            <td>°C</td>
+                                        </tr>
+                                        <tr>
+                                            <td>pH Level</td>
+                                            <td>%.2f</td>
+                                            <td>-</td>
+                                        </tr>
+                                        <tr>
+                                            <td>TDS (Total Dissolved Solids)</td>
+                                            <td>%.2f</td>
+                                            <td>ppm</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Turbidity</td>
+                                            <td>%.2f</td>
+                                            <td>NTU</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Dissolved Oxygen</td>
+                                            <td>%.2f</td>
+                                            <td>mg/L</td>
+                                        </tr>
+                                    </table>
+
+                                    <p><strong>Recorded At:</strong> %s</p>
+                                    <p><strong>Location:</strong> Lat: %.6f, Lng: %.6f</p>
+
+                                    <p>All parameters are now within acceptable limits. You may resume normal water usage.</p>
+                                </div>
+
+                                <div class="footer">
+                                    <p>Stay safe and stay informed.</p>
+                                    <p>&copy; 2024 HydroSense Team<br>
+                                    <a href="#" style="color: #888888;">Unsubscribe</a> | <a href="#" style="color: #888888;">Support</a></p>
+                                </div>
+                            </div>
+                            <br><br>
+                        </body>
+                        </html>
+                        """,
+                reading.getDeviceId() != null ? reading.getDeviceId() : "Unknown",
+                reading.getTemperature(),
+                reading.getPh(),
+                reading.getTds(),
+                reading.getTurbidity(),
+                reading.getDissolvedOxygen(),
+                recordedTime,
+                reading.getLatitude(),
+                reading.getLongitude());
+
+        sendAlertEmail(to, subject, content);
+        log.info("Safe recovery alert email sent to: {}", to);
+    }
+
 }

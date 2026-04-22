@@ -2,6 +2,7 @@ package com.smartwater.HydroSense.controller;
 
 import com.smartwater.HydroSense.dto.CitizenWaterStatusDTO;
 import com.smartwater.HydroSense.dto.WaterQualityResponse;
+import com.smartwater.HydroSense.enums.WaterQualityStatus;
 import com.smartwater.HydroSense.service.WaterQualityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -77,5 +78,71 @@ public class WaterQualityController {
             @RequestParam(defaultValue = "5") Double radiusKm) {
 
         return ResponseEntity.ok(waterQualityService.getReadingsByLocation(latitude, longitude, radiusKm));
+    }
+
+    /**
+     * Get list of all active device IDs (authorities only)
+     */
+    @GetMapping("/devices")
+    @PreAuthorize("hasRole('AUTHORITY')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Get all active device IDs", description = "Returns list of all device IDs that have sent data")
+    public ResponseEntity<List<String>> getAllActiveDevices() {
+        return ResponseEntity.ok(waterQualityService.getAllActiveDeviceIds());
+    }
+
+    /**
+     * Get latest reading for a specific device (authorities only)
+     */
+    @GetMapping("/devices/{deviceId}/current")
+    @PreAuthorize("hasRole('AUTHORITY')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Get current status for a specific device")
+    public ResponseEntity<?> getCurrentStatusByDevice(@PathVariable String deviceId) {
+        WaterQualityResponse current = waterQualityService.getCurrentStatusByDevice(deviceId);
+        if (current == null) {
+            return ResponseEntity.ok(Map.of(
+                    "message", "No data available for device: " + deviceId,
+                    "status", "UNKNOWN"));
+        }
+        return ResponseEntity.ok(current);
+    }
+
+    /**
+     * Get all readings for a specific device (authorities only)
+     */
+    @GetMapping("/devices/{deviceId}/history")
+    @PreAuthorize("hasRole('AUTHORITY')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Get all readings for a specific device")
+    public ResponseEntity<List<WaterQualityResponse>> getReadingsByDevice(@PathVariable String deviceId) {
+        return ResponseEntity.ok(waterQualityService.getReadingsByDevice(deviceId));
+    }
+
+    /**
+     * Get readings for a specific device filtered by status (authorities only)
+     */
+    @GetMapping("/devices/{deviceId}/status/{status}")
+    @PreAuthorize("hasRole('AUTHORITY')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Get readings for a device filtered by SAFE or UNSAFE status")
+    public ResponseEntity<List<WaterQualityResponse>> getReadingsByDeviceAndStatus(
+            @PathVariable String deviceId,
+            @PathVariable WaterQualityStatus status) {
+        return ResponseEntity.ok(waterQualityService.getReadingsByDeviceAndStatus(deviceId, status));
+    }
+
+    /**
+     * Get readings for a specific device within a time range (authorities only)
+     */
+    @GetMapping("/devices/{deviceId}/history/range")
+    @PreAuthorize("hasRole('AUTHORITY')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Get readings for a device within a time range")
+    public ResponseEntity<List<WaterQualityResponse>> getReadingsByDeviceAndTimeRange(
+            @PathVariable String deviceId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
+        return ResponseEntity.ok(waterQualityService.getReadingsByDeviceAndTimeRange(deviceId, start, end));
     }
 }

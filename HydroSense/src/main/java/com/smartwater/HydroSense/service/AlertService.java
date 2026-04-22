@@ -35,23 +35,59 @@ public class AlertService {
     private final ObjectMapper objectMapper;
 
     /**
-     * Generate alerts based on water quality reading
+     * Generate alert when device transitions from SAFE to UNSAFE
      */
     @Transactional
-    public void generateAlerts(WaterQualityReading reading, boolean approachingUnsafe) {
-        if (reading.getStatus() == WaterQualityStatus.HIGHLY_POLLUTED) {
-            // High priority alert for authorities
-            createAuthorityAlert(reading, AlertPriority.HIGH,
-                    "CRITICAL: Highly polluted water detected! Immediate action required.");
+    public void generateUnsafeAlert(WaterQualityReading reading, boolean approachingUnsafe) {
+        // High priority alert for authorities
+        createAuthorityAlert(reading, AlertPriority.HIGH,
+                "CRITICAL: Unsafe water quality detected on device " + reading.getDeviceId()
+                        + "! Immediate action required.");
 
-            // Simple alert for citizens
-            createCitizenAlert(reading,
-                    "Water is polluted and not safe for drinking. Please use alternative water sources.");
-        } else if (approachingUnsafe) {
-            // Medium priority alert for authorities only
-            createAuthorityAlert(reading, AlertPriority.MEDIUM,
-                    "WARNING: Water quality approaching unsafe limits. Monitor closely.");
-        }
+        // Alert for citizens
+        createCitizenAlert(reading,
+                "Water is unsafe and not suitable for drinking. Please use alternative water sources.");
+    }
+
+    /**
+     * Generate warning alert when device parameters are approaching unsafe limits
+     */
+    @Transactional
+    public void generateApproachingUnsafeAlert(WaterQualityReading reading) {
+        createAuthorityAlert(reading, AlertPriority.MEDIUM,
+                "WARNING: Water quality on device " + reading.getDeviceId()
+                        + " is approaching unsafe limits. Monitor closely.");
+    }
+
+    /**
+     * Generate safe recovery notification when device transitions from UNSAFE to SAFE
+     */
+    @Transactional
+    public void generateSafeRecoveryNotification(WaterQualityReading reading) {
+        String technicalDetails = buildTechnicalDetails(reading);
+
+        Alert alert = Alert.builder()
+                .message("RECOVERY: Water quality on device " + reading.getDeviceId()
+                        + " has returned to safe levels.")
+                .technicalDetails(technicalDetails)
+                .priority(AlertPriority.LOW)
+                .targetRole(UserRole.AUTHORITY)
+                .reading(reading)
+                .latitude(reading.getLatitude())
+                .longitude(reading.getLongitude())
+                .acknowledged(false)
+                .emailSent(false)
+                .pushSent(false)
+                .build();
+
+        alert = alertRepository.save(alert);
+        log.info("Created safe recovery alert ID: {} for device: {}", alert.getId(), reading.getDeviceId());
+
+        // Notify authorities of recovery
+        sendSafeRecoveryEmailToAuthorities(reading);
+
+        // Notify citizens of recovery
+        sendSafeRecoveryEmailToCitizens(reading);
     }
 
     /**
@@ -208,6 +244,40 @@ public class AlertService {
         sb.append("</body></html>");
 
         return sb.toString();
+    }
+
+    /**
+     * Send safe recovery email notifications to all authorities
+     */
+    private void sendSafeRecoveryEmailToAuthorities(WaterQualityReading reading) {
+        List<User> authorities = userRepository.findByRoleAndIsActiveTrueOrderByFullNameAsc(UserRole.AUTHORITY);
+        for (User authority : authorities) {
+            try {
+                emailService.sendSafeRecoveryAlert(authority.getEmail(), reading);
+            } catch (Exception e) {
+                log.error("Failed to send safe recovery email to authority: {}", authority.getEmail(), e);
+            }
+        }
+    }
+
+    /**
+     * Send safe recovery email notifications to all citizens
+     */
+    private void sendSafeRecoveryEmailToCitizens(WaterQualityReading reading) {
+        try {
+            List<User> citizens = userRepository.findByRoleAndIsActiveTrue(UserRole.CITIZEN);
+            for (User citizen : citizens) {
+                if (citizen.getEmail() != null && !citizen.getEmail().isEmpty()) {
+                    try {
+                        emailService.sendSafeRecoveryAlert(citizen.getEmail(), reading);
+                    } catch (Exception e) {
+                        log.error("Failed to send safe recovery email to citizen: {}", citizen.getEmail(), e);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error sending safe recovery notifications to citizens", e);
+        }
     }
 
     /**

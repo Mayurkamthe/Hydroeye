@@ -22,12 +22,24 @@ public class AuthController {
     private final AuthService authService;
 
     /**
-     * Register a new user
+     * Register a new CITIZEN user (public)
      */
     @PostMapping("/register")
-    @Operation(summary = "Register a new user")
+    @Operation(summary = "Register a new citizen user")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ResponseEntity.ok(authService.register(request));
+    }
+
+    /**
+     * Create an AUTHORITY account — Super Admin only
+     */
+    @PostMapping("/admin/create-authority")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Create an authority account (Super Admin only)")
+    public ResponseEntity<AuthResponse> createAuthorityAccount(
+            @Valid @RequestBody RegisterRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(authService.createAuthorityAccount(request, authentication.getName()));
     }
 
     /**
