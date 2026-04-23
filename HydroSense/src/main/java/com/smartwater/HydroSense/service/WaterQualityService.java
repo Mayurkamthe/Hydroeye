@@ -337,6 +337,20 @@ public class WaterQualityService {
     }
 
     /**
+     * Get current SAFE/UNSAFE status for all known devices (device-wise overview)
+     */
+    public Map<String, WaterQualityResponse> getAllDevicesCurrentStatus() {
+        List<String> deviceIds = readingRepository.findDistinctDeviceIds();
+        Map<String, WaterQualityResponse> result = new java.util.LinkedHashMap<>();
+        for (String deviceId : deviceIds) {
+            readingRepository.findTopByDeviceIdAndIsDeletedFalseOrderByRecordedAtDesc(deviceId)
+                    .map(this::mapToResponse)
+                    .ifPresent(r -> result.put(deviceId, r));
+        }
+        return result;
+    }
+
+    /**
      * Get readings for a specific device filtered by status (SAFE or UNSAFE)
      */
     public List<WaterQualityResponse> getReadingsByDeviceAndStatus(String deviceId, WaterQualityStatus status) {
@@ -388,40 +402,5 @@ public class WaterQualityService {
                 .deviceId(reading.getDeviceId())
                 .statusMessage(statusMessage)
                 .build();
-    }
-}
-
-    // -------------------------------------------------------------------------
-    // Device-based and status-based segregation methods (Change 1.2)
-    // -------------------------------------------------------------------------
-
-    /**
-     * Get all readings for a specific device (device-based segregation)
-     */
-    public List<WaterQualityResponse> getReadingsByDevice(String deviceId) {
-        return readingRepository.findByDeviceIdAndIsDeletedFalseOrderByRecordedAtDesc(deviceId)
-                .stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Get readings for a specific device filtered by status
-     * Supports both device-wise and status-wise segregation simultaneously
-     */
-    public List<WaterQualityResponse> getReadingsByDeviceAndStatus(String deviceId, WaterQualityStatus status) {
-        return readingRepository.findByDeviceIdAndStatusAndIsDeletedFalseOrderByRecordedAtDesc(deviceId, status)
-                .stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Get the latest reading for a specific device
-     */
-    public WaterQualityResponse getCurrentStatusByDevice(String deviceId) {
-        return readingRepository.findTopByDeviceIdAndIsDeletedFalseOrderByRecordedAtDesc(deviceId)
-                .map(this::mapToResponse)
-                .orElse(null);
     }
 }

@@ -81,6 +81,17 @@ public class WaterQualityController {
     }
 
     /**
+     * Get current status for ALL devices (device-wise segregation overview)
+     */
+    @GetMapping("/devices/status/all")
+    @PreAuthorize("hasRole('AUTHORITY')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Get current status for all devices", description = "Returns latest reading per device with SAFE/UNSAFE status")
+    public ResponseEntity<Map<String, WaterQualityResponse>> getAllDevicesCurrentStatus() {
+        return ResponseEntity.ok(waterQualityService.getAllDevicesCurrentStatus());
+    }
+
+    /**
      * Get list of all active device IDs (authorities only)
      */
     @GetMapping("/devices")

@@ -58,7 +58,7 @@ public class SecurityConfig {
                         // Error page (needed to return proper error responses)
                         .requestMatchers("/error").permitAll()
                         // Super Admin only endpoints
-                        .requestMatchers("/api/v1/auth/admin/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/v1/auth/super-admin/**").hasRole("SUPER_ADMIN")
                         // Authority only endpoints
                         .requestMatchers("/api/v1/histogram/**").hasRole("AUTHORITY")
                         .requestMatchers("/api/v1/alerts/authority/**").hasRole("AUTHORITY")

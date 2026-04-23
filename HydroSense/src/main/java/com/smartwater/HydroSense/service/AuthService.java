@@ -127,6 +127,33 @@ public class AuthService {
     }
 
     /**
+     * List all authority users — only callable by Super Admin
+     */
+    public java.util.List<UserInfo> listAuthorityUsers() {
+        return userRepository.findByRole(com.smartwater.HydroSense.enums.UserRole.AUTHORITY)
+                .stream()
+                .map(this::mapToUserInfo)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    /**
+     * Deactivate a user account — only callable by Super Admin
+     */
+    @Transactional
+    public void deactivateUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+
+        if (user.getRole() == com.smartwater.HydroSense.enums.UserRole.SUPER_ADMIN) {
+            throw new RuntimeException("Super Admin account cannot be deactivated.");
+        }
+
+        user.setIsActive(false);
+        userRepository.save(user);
+        log.info("Super Admin deactivated user: {}", user.getEmail());
+    }
+
+    /**
      * Login user
      */
     public AuthResponse login(LoginRequest request) {

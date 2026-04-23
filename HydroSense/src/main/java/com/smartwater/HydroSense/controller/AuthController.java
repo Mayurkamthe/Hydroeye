@@ -8,9 +8,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -33,13 +35,37 @@ public class AuthController {
     /**
      * Create an AUTHORITY account — Super Admin only
      */
-    @PostMapping("/admin/create-authority")
+    @PostMapping("/super-admin/create-authority")
     @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @Operation(summary = "Create an authority account (Super Admin only)")
     public ResponseEntity<AuthResponse> createAuthorityAccount(
             @Valid @RequestBody RegisterRequest request,
             Authentication authentication) {
         return ResponseEntity.ok(authService.createAuthorityAccount(request, authentication.getName()));
+    }
+
+    /**
+     * List all authority users — Super Admin only
+     */
+    @GetMapping("/super-admin/authorities")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "List all authority users (Super Admin only)")
+    public ResponseEntity<List<UserInfo>> listAuthorityUsers() {
+        return ResponseEntity.ok(authService.listAuthorityUsers());
+    }
+
+    /**
+     * Deactivate a user account — Super Admin only
+     */
+    @PutMapping("/super-admin/deactivate/{userId}")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Deactivate a user account (Super Admin only)")
+    public ResponseEntity<?> deactivateUser(@PathVariable Long userId) {
+        authService.deactivateUser(userId);
+        return ResponseEntity.ok(Map.of("message", "User account deactivated successfully"));
     }
 
     /**
