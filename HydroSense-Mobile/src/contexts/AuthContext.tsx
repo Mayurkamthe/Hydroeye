@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AuthService, AuthResponse, UserInfo } from '../services/authService';
+import { AuthService, AuthResponse, UserInfo, UserRole } from '../services/authService';
 import { setAuthToken, clearAuthToken, getAuthToken } from '../api/config';
 
 interface AuthContextType {
@@ -8,7 +8,7 @@ interface AuthContextType {
     isLoading: boolean;
     isAuthenticated: boolean;
     login: (email: string, password: string) => Promise<void>;
-    register: (fullName: string, email: string, password: string, role: 'CITIZEN' | 'AUTHORITY') => Promise<void>;
+    register: (fullName: string, email: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
 }
 
@@ -44,8 +44,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setUser(userInfo);
     };
 
-    const register = async (fullName: string, email: string, password: string, role: 'CITIZEN' | 'AUTHORITY') => {
-        const response = await AuthService.register({ fullName, email, password, role });
+    // Public registration is CITIZEN-only
+    const register = async (fullName: string, email: string, password: string) => {
+        const response = await AuthService.register({ fullName, email, password, role: 'CITIZEN' });
         await setAuthToken(response.token);
         const userInfo = await AuthService.getCurrentUser();
         setUser(userInfo);

@@ -15,9 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // import Header from '../../components/Header'; 
 import QualityCard from '../../components/QualityCard';
 import TrendChart from '../../components/TrendChart';
-import { WaterService, WaterQualityData } from '../../services/waterService';
+import { WaterService, WaterQualityData, DeviceStatusMap } from '../../services/waterService';
 import { AlertService } from '../../services/alertService';
-import { DeviceService, Device } from '../../services/deviceService';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
@@ -28,21 +27,21 @@ const GovernmentDashboard = () => {
     const [currentReading, setCurrentReading] = useState<WaterQualityData | null>(null);
     const [historyData, setHistoryData] = useState<WaterQualityData[]>([]);
     const [alertCount, setAlertCount] = useState(0);
-    const [devices, setDevices] = useState<Device[]>([]);
+    const [deviceStatusMap, setDeviceStatusMap] = useState<DeviceStatusMap>({});
     const [viewMode, setViewMode] = useState<'Chart' | 'Table'>('Chart');
 
     const fetchData = useCallback(async () => {
         try {
-            const [reading, history, count, deviceList] = await Promise.all([
+            const [reading, history, count, devStatus] = await Promise.all([
                 WaterService.getCurrentStatus(),
                 WaterService.getHistory(5),
                 AlertService.getAlertCount(),
-                DeviceService.getDevices(),
+                WaterService.getAllDevicesStatus(),
             ]);
             setCurrentReading(reading);
             setHistoryData(history);
             setAlertCount(count);
-            setDevices(deviceList);
+            setDeviceStatusMap(devStatus);
         } catch (error) {
             console.error('Failed to fetch data:', error);
         } finally {
@@ -72,41 +71,24 @@ const GovernmentDashboard = () => {
         label: new Date(item.recordedAt).toLocaleDateString('en-US', { weekday: 'short' }),
     }));
 
-    const getDeviceStatusColor = (status: string): string => {
-        switch (status) {
-            case 'ACTIVE': return '#4CAF50';
-            case 'WARNING': return '#FFA000';
-            case 'INACTIVE': return '#D32F2F';
-            default: return '#999';
-        }
-    };
-
-    const activeDeviceCount = devices.filter(d => d.status === 'ACTIVE').length;
-    const warningDeviceCount = devices.filter(d => d.status === 'WARNING').length;
+    const deviceEntries = Object.entries(deviceStatusMap);
+    const safeDevices = deviceEntries.filter(([, d]) => d.status === 'SAFE');
+    const unsafeDevices = deviceEntries.filter(([, d]) => d.status === 'UNSAFE');
 
     const getDeviceCountText = (): string => {
-        if (devices.length === 0) return 'No Devices';
-        if (warningDeviceCount > 0) return `${activeDeviceCount} Active, ${warningDeviceCount} Warning`;
-        return `${activeDeviceCount} Active`;
+        if (deviceEntries.length === 0) return 'No Devices';
+        if (unsafeDevices.length > 0) return `${safeDevices.length} Safe, ${unsafeDevices.length} Unsafe`;
+        return `${safeDevices.length} All Safe`;
     };
 
     const getMapRegion = () => {
-        if (devices.length === 0) {
-            return {
-                latitude: 18.5204,
-                longitude: 73.8567,
-                latitudeDelta: 0.05,
-                longitudeDelta: 0.05,
-            };
+        const readings = Object.values(deviceStatusMap).filter((d) => d.latitude && d.longitude);
+        if (readings.length === 0) {
+            return { latitude: 18.5204, longitude: 73.8567, latitudeDelta: 0.05, longitudeDelta: 0.05 };
         }
-        const avgLat = devices.reduce((sum, d) => sum + d.latitude, 0) / devices.length;
-        const avgLng = devices.reduce((sum, d) => sum + d.longitude, 0) / devices.length;
-        return {
-            latitude: avgLat,
-            longitude: avgLng,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
-        };
+        const avgLat = readings.reduce((s, d) => s + (d.latitude ?? 0), 0) / readings.length;
+        const avgLng = readings.reduce((s, d) => s + (d.longitude ?? 0), 0) / readings.length;
+        return { latitude: avgLat, longitude: avgLng, latitudeDelta: 0.05, longitudeDelta: 0.05 };
     };
     // --- LOGIC ENDS HERE ---
 
@@ -258,8 +240,8 @@ const GovernmentDashboard = () => {
                             <Ionicons name="location" size={20} color="#4169E1" />
                             <Text style={styles.mapLabel}>Monitoring Stations</Text>
                         </View>
-                        <View style={[styles.deviceCountBadge, warningDeviceCount > 0 && styles.deviceCountBadgeWarning]}>
-                            <Text style={[styles.deviceCountText, warningDeviceCount > 0 && styles.deviceCountTextWarning]}>
+                        <View style={[styles.deviceCountBadge, unsafeDevices.length > 0 && styles.deviceCountBadgeWarning]}>
+                            <Text style={[styles.deviceCountText, unsafeDevices.length > 0 && styles.deviceCountTextWarning]}>
                                 {getDeviceCountText()}
                             </Text>
                         </View>
@@ -270,27 +252,39 @@ const GovernmentDashboard = () => {
                             style={styles.map}
                             initialRegion={getMapRegion()}
                         >
-                            {devices.map((device) => (
-                                <Marker
-                                    key={device.id}
-                                    coordinate={{ latitude: device.latitude, longitude: device.longitude }}
-                                    title={`${device.name} - ${device.location}`}
-                                    description={`Status: ${device.status}${device.lastReading ? ` | Last: ${new Date(device.lastReading).toLocaleTimeString()}` : ''}`}
-                                    pinColor={getDeviceStatusColor(device.status)}
-                                />
-                            ))}
+                            {Object.entries(deviceStatusMap).map(([deviceId, data]) =>
+                                data.latitude && data.longitude ? (
+                                    <Marker
+                                        key={deviceId}
+                                        coordinate={{ latitude: data.latitude, longitude: data.longitude }}
+                                        title={deviceId}
+                                        description={`Status: ${data.status} | pH: ${data.ph?.toFixed(2)}`}
+                                        pinColor={data.status === 'SAFE' ? '#4CAF50' : '#D32F2F'}
+                                    />
+                                ) : null
+                            )}
                         </MapView>
                     </View>
-                    {/* Device List */}
+                    {/* Device Status List */}
                     <View style={styles.deviceList}>
-                        {devices.length === 0 ? (
-                            <Text style={styles.noDevicesText}>No devices registered yet</Text>
+                        {deviceEntries.length === 0 ? (
+                            <Text style={styles.noDevicesText}>No device data received yet</Text>
                         ) : (
-                            devices.map((device) => (
-                                <View key={device.id} style={styles.deviceItem}>
-                                    <View style={[styles.statusDot, { backgroundColor: getDeviceStatusColor(device.status) }]} />
-                                    <Text style={styles.deviceName}>{device.name}</Text>
-                                    <Text style={styles.deviceLocation}>{device.location}</Text>
+                            deviceEntries.map(([deviceId, data]) => (
+                                <View key={deviceId} style={styles.deviceItem}>
+                                    <View style={[styles.statusDot, { backgroundColor: data.status === 'SAFE' ? '#4CAF50' : '#D32F2F' }]} />
+                                    <Text style={styles.deviceName}>{deviceId}</Text>
+                                    <View style={[
+                                        styles.deviceStatusBadge,
+                                        { backgroundColor: data.status === 'SAFE' ? '#E8F5E9' : '#FFEBEE' }
+                                    ]}>
+                                        <Text style={[
+                                            styles.deviceStatusText,
+                                            { color: data.status === 'SAFE' ? '#4CAF50' : '#D32F2F' }
+                                        ]}>
+                                            {data.status}
+                                        </Text>
+                                    </View>
                                 </View>
                             ))
                         )}
@@ -553,11 +547,17 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
         color: '#333',
-        marginRight: 8,
+        flex: 1,
     },
-    deviceLocation: {
-        fontSize: 12,
-        color: '#999',
+    deviceStatusBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 3,
+        borderRadius: 8,
+    },
+    deviceStatusText: {
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 0.5,
     },
     deviceCountBadgeWarning: {
         backgroundColor: '#FFF3E0',

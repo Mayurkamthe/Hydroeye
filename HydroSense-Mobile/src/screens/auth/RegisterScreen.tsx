@@ -25,7 +25,6 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [role, setRole] = useState<'CITIZEN' | 'AUTHORITY'>('CITIZEN');
     const [loading, setLoading] = useState(false);
     const { register } = useAuth();
 
@@ -47,7 +46,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
 
         setLoading(true);
         try {
-            await register(fullName, email, password, role);
+            await register(fullName, email, password);
         } catch (error: any) {
             Alert.alert('Registration Failed', error.response?.data?.message || 'Something went wrong');
         } finally {
@@ -134,37 +133,12 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                             />
                         </View>
 
-                        {/* Role Selection (Pill Style) */}
-                        <Text style={styles.inputLabel}>I am a...</Text>
-                        <View style={styles.roleContainer}>
-                            <TouchableOpacity
-                                style={[styles.roleButton, role === 'CITIZEN' && styles.roleSelected]}
-                                onPress={() => setRole('CITIZEN')}
-                            >
-                                <Ionicons
-                                    name="people"
-                                    size={18}
-                                    color={role === 'CITIZEN' ? '#fff' : '#666'}
-                                    style={{ marginRight: 8 }}
-                                />
-                                <Text style={[styles.roleText, role === 'CITIZEN' && styles.roleTextSelected]}>
-                                    Citizen
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.roleButton, role === 'AUTHORITY' && styles.roleSelected]}
-                                onPress={() => setRole('AUTHORITY')}
-                            >
-                                <Ionicons
-                                    name="briefcase"
-                                    size={18}
-                                    color={role === 'AUTHORITY' ? '#fff' : '#666'}
-                                    style={{ marginRight: 8 }}
-                                />
-                                <Text style={[styles.roleText, role === 'AUTHORITY' && styles.roleTextSelected]}>
-                                    Authority
-                                </Text>
-                            </TouchableOpacity>
+                        {/* Info Note */}
+                        <View style={styles.infoNote}>
+                            <Ionicons name="information-circle-outline" size={16} color="#4169E1" style={{ marginRight: 8 }} />
+                            <Text style={styles.infoNoteText}>
+                                Public registration is for Citizens only. Authority accounts are created by a Super Admin.
+                            </Text>
                         </View>
 
                         {/* Submit Button */}
@@ -269,38 +243,21 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#333',
     },
-    roleContainer: {
+    infoNote: {
         flexDirection: 'row',
-        marginBottom: 24,
-        backgroundColor: '#FAFAFA',
-        padding: 4,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: '#F0F0F0',
-    },
-    roleButton: {
-        flex: 1,
-        flexDirection: 'row',
-        height: 44,
+        alignItems: 'flex-start',
+        backgroundColor: '#EEF2FF',
         borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
+        padding: 12,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: '#C7D2FE',
     },
-    roleSelected: {
-        backgroundColor: '#4169E1',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    roleText: {
-        color: '#666',
-        fontWeight: '600',
-        fontSize: 14,
-    },
-    roleTextSelected: {
-        color: '#fff',
+    infoNoteText: {
+        flex: 1,
+        fontSize: 13,
+        color: '#4338CA',
+        lineHeight: 18,
     },
     button: {
         height: 56,

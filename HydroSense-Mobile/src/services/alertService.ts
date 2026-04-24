@@ -6,6 +6,8 @@ export interface Alert {
     technicalDetails?: string;
     priority: 'HIGH' | 'MEDIUM' | 'LOW';
     targetRole: 'CITIZEN' | 'AUTHORITY';
+    deviceId?: string;
+    isRecoveryAlert?: boolean;
     latitude?: number;
     longitude?: number;
     createdAt: string;

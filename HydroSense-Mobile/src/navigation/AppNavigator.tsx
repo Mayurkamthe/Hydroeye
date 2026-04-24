@@ -17,15 +17,33 @@ import CitizenDashboard from '../screens/citizen/DashboardScreen';
 import CitizenAlerts from '../screens/citizen/AlertsScreen';
 import CitizenProfile from '../screens/citizen/ProfileScreen';
 
-// Government Screens
+// Government (Authority) Screens
 import GovernmentDashboard from '../screens/government/DashboardScreen';
 import GovernmentAlerts from '../screens/government/AlertsScreen';
 import GovernmentProfile from '../screens/government/ProfileScreen';
 import GovernmentDevices from '../screens/government/DevicesScreen';
 
+// Super Admin Screens
+import ManageAuthoritiesScreen from '../screens/superadmin/ManageAuthoritiesScreen';
+import SuperAdminProfileScreen from '../screens/superadmin/ProfileScreen';
+
 const AuthStack = createStackNavigator();
 const CitizenTabs = createBottomTabNavigator();
 const GovernmentTabs = createBottomTabNavigator();
+const SuperAdminTabs = createBottomTabNavigator();
+
+const tabBarStyle = {
+    height: 60,
+    paddingBottom: 8,
+    paddingTop: 8,
+    borderTopWidth: 0,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    backgroundColor: '#fff',
+};
 
 const AuthNavigator = () => (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
@@ -47,22 +65,8 @@ const CitizenNavigator = () => (
             },
             tabBarActiveTintColor: '#4169E1',
             tabBarInactiveTintColor: '#999',
-            tabBarStyle: {
-                height: 60,
-                paddingBottom: 8,
-                paddingTop: 8,
-                borderTopWidth: 0,
-                elevation: 10,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: -2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 10,
-                backgroundColor: '#fff',
-            },
-            tabBarLabelStyle: {
-                fontSize: 12,
-                fontWeight: '500',
-            },
+            tabBarStyle,
+            tabBarLabelStyle: { fontSize: 12, fontWeight: '500' },
             headerShown: false,
         })}
     >
@@ -85,18 +89,7 @@ const GovernmentNavigator = () => (
             },
             tabBarActiveTintColor: '#4169E1',
             tabBarInactiveTintColor: '#999',
-            tabBarStyle: {
-                height: 60,
-                paddingBottom: 8,
-                paddingTop: 8,
-                borderTopWidth: 0,
-                elevation: 10,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: -2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 10,
-                backgroundColor: '#fff',
-            },
+            tabBarStyle,
             headerShown: false,
         })}
     >
@@ -105,6 +98,26 @@ const GovernmentNavigator = () => (
         <GovernmentTabs.Screen name="Alerts" component={GovernmentAlerts} />
         <GovernmentTabs.Screen name="Profile" component={GovernmentProfile} />
     </GovernmentTabs.Navigator>
+);
+
+const SuperAdminNavigator = () => (
+    <SuperAdminTabs.Navigator
+        screenOptions={({ route }) => ({
+            tabBarIcon: ({ focused, color, size }) => {
+                let iconName: keyof typeof Ionicons.glyphMap = 'people';
+                if (route.name === 'Authorities') iconName = focused ? 'people' : 'people-outline';
+                else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
+                return <Ionicons name={iconName} size={size} color={color} />;
+            },
+            tabBarActiveTintColor: '#1a1a1a',
+            tabBarInactiveTintColor: '#999',
+            tabBarStyle,
+            headerShown: false,
+        })}
+    >
+        <SuperAdminTabs.Screen name="Authorities" component={ManageAuthoritiesScreen} />
+        <SuperAdminTabs.Screen name="Profile" component={SuperAdminProfileScreen} />
+    </SuperAdminTabs.Navigator>
 );
 
 const AppNavigator = () => {
@@ -122,6 +135,8 @@ const AppNavigator = () => {
         <NavigationContainer>
             {!isAuthenticated ? (
                 <AuthNavigator />
+            ) : user?.role === 'SUPER_ADMIN' ? (
+                <SuperAdminNavigator />
             ) : user?.role === 'AUTHORITY' ? (
                 <GovernmentNavigator />
             ) : (

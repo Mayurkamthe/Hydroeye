@@ -166,15 +166,15 @@ const CitizenDashboard = () => {
 
                             <View style={styles.statusBadge}>
                                 <Ionicons
-                                    name={citizenStatus?.safetyStatus === 'DANGER' ? 'warning' : 'shield-checkmark'}
+                                    name={citizenStatus?.status === 'UNSAFE' ? 'warning' : 'shield-checkmark'}
                                     size={16}
-                                    color={citizenStatus?.safetyStatus === 'DANGER' ? '#C62828' : '#155724'}
+                                    color={citizenStatus?.status === 'UNSAFE' ? '#C62828' : '#155724'}
                                 />
                                 <Text style={[
                                     styles.statusText,
-                                    { color: citizenStatus?.safetyStatus === 'DANGER' ? '#C62828' : '#155724' }
+                                    { color: citizenStatus?.status === 'UNSAFE' ? '#C62828' : '#155724' }
                                 ]}>
-                                    {citizenStatus?.safetyStatus === 'DANGER' ? 'Unsafe' : 'Safe to Use'}
+                                    {citizenStatus?.status === 'UNSAFE' ? 'Unsafe' : 'Safe to Use'}
                                 </Text>
                             </View>
                         </View>
@@ -207,28 +207,28 @@ const CitizenDashboard = () => {
                         label="pH Level"
                         value={currentReading?.ph?.toFixed(1) || '7.2'}
                         unit=""
-                        status={citizenStatus?.safetyStatus === 'DANGER' ? 'Danger' : citizenStatus?.safetyStatus === 'WARNING' ? 'Warning' : 'Safe'}
+                        status={citizenStatus?.status === 'UNSAFE' ? 'Danger' : citizenStatus?.approachingUnsafe === true ? 'Warning' : 'Safe'}
                         iconName="water"
                     />
                     <QualityCard
                         label="Dissolved Oxygen"
                         value={currentReading?.dissolvedOxygen?.toFixed(1) || '8.6'}
                         unit="mg/L"
-                        status={citizenStatus?.safetyStatus === 'DANGER' ? 'Danger' : citizenStatus?.safetyStatus === 'WARNING' ? 'Warning' : 'Safe'}
+                        status={citizenStatus?.status === 'UNSAFE' ? 'Danger' : citizenStatus?.approachingUnsafe === true ? 'Warning' : 'Safe'}
                         iconName="analytics"
                     />
                     <QualityCard
                         label="Turbidity"
                         value={currentReading?.turbidity?.toFixed(1) || '0.6'}
                         unit="NTU"
-                        status={citizenStatus?.safetyStatus === 'DANGER' ? 'Danger' : citizenStatus?.safetyStatus === 'WARNING' ? 'Warning' : 'Safe'}
+                        status={citizenStatus?.status === 'UNSAFE' ? 'Danger' : citizenStatus?.approachingUnsafe === true ? 'Warning' : 'Safe'}
                         iconName="eye"
                     />
                     <QualityCard
                         label="TDS"
                         value={currentReading?.tds?.toFixed(0) || '334'}
                         unit="ppm"
-                        status={citizenStatus?.safetyStatus === 'DANGER' ? 'Danger' : citizenStatus?.safetyStatus === 'WARNING' ? 'Warning' : 'Safe'}
+                        status={citizenStatus?.status === 'UNSAFE' ? 'Danger' : citizenStatus?.approachingUnsafe === true ? 'Warning' : 'Safe'}
                         iconName="flask"
                     />
                 </View>

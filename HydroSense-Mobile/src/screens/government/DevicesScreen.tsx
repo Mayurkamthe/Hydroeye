@@ -7,36 +7,25 @@ import {
     RefreshControl,
     ActivityIndicator,
     TouchableOpacity,
-    Modal,
-    TextInput,
-    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { DeviceService, Device, CreateDeviceDTO } from '../../services/deviceService';
+import { WaterService, WaterQualityData, DeviceStatusMap, WaterQualityStatus } from '../../services/waterService';
+
+type StatusFilter = 'ALL' | 'SAFE' | 'UNSAFE';
 
 const DevicesScreen = () => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [devices, setDevices] = useState<Device[]>([]);
-    const [modalVisible, setModalVisible] = useState(false);
-    const [editingDevice, setEditingDevice] = useState<Device | null>(null);
-
-    // Form state
-    const [formData, setFormData] = useState<CreateDeviceDTO>({
-        deviceId: '',
-        name: '',
-        location: '',
-        latitude: 0,
-        longitude: 0,
-    });
+    const [deviceStatusMap, setDeviceStatusMap] = useState<DeviceStatusMap>({});
+    const [filter, setFilter] = useState<StatusFilter>('ALL');
 
     const fetchDevices = useCallback(async () => {
         try {
-            const data = await DeviceService.getDevices();
-            setDevices(data);
+            const data = await WaterService.getAllDevicesStatus();
+            setDeviceStatusMap(data);
         } catch (error) {
-            console.error('Failed to fetch devices:', error);
+            console.error('Failed to fetch device statuses:', error);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -52,128 +41,77 @@ const DevicesScreen = () => {
         fetchDevices();
     }, [fetchDevices]);
 
-    const resetForm = () => {
-        setFormData({
-            deviceId: '',
-            name: '',
-            location: '',
-            latitude: 0,
-            longitude: 0,
-        });
-        setEditingDevice(null);
-    };
+    const allDevices = Object.entries(deviceStatusMap).map(([deviceId, data]) => ({
+        deviceId,
+        ...data,
+    }));
 
-    const openAddModal = () => {
-        resetForm();
-        setModalVisible(true);
-    };
+    const filteredDevices = allDevices.filter((d) => {
+        if (filter === 'ALL') return true;
+        return d.status === filter;
+    });
 
-    const openEditModal = (device: Device) => {
-        setEditingDevice(device);
-        setFormData({
-            deviceId: device.deviceId,
-            name: device.name,
-            location: device.location,
-            latitude: device.latitude,
-            longitude: device.longitude,
-        });
-        setModalVisible(true);
-    };
+    const safeCount = allDevices.filter((d) => d.status === 'SAFE').length;
+    const unsafeCount = allDevices.filter((d) => d.status === 'UNSAFE').length;
 
-    const handleSubmit = async () => {
-        if (!formData.deviceId || !formData.name || !formData.location) {
-            Alert.alert('Error', 'Please fill in all required fields');
-            return;
-        }
+    const getStatusColor = (status: WaterQualityStatus) =>
+        status === 'SAFE' ? '#4CAF50' : '#D32F2F';
 
-        try {
-            if (editingDevice) {
-                await DeviceService.updateDevice(editingDevice.id, formData);
-                Alert.alert('Success', 'Device updated successfully');
-            } else {
-                await DeviceService.addDevice(formData);
-                Alert.alert('Success', 'Device added successfully');
-            }
-            setModalVisible(false);
-            resetForm();
-            fetchDevices();
-        } catch (error) {
-            Alert.alert('Error', 'Failed to save device');
-        }
-    };
+    const getStatusBg = (status: WaterQualityStatus) =>
+        status === 'SAFE' ? '#E8F5E9' : '#FFEBEE';
 
-    const handleDelete = (device: Device) => {
-        Alert.alert(
-            'Delete Device',
-            `Are you sure you want to delete "${device.name}"?`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await DeviceService.deleteDevice(device.id);
-                            fetchDevices();
-                            Alert.alert('Success', 'Device deleted');
-                        } catch (error) {
-                            Alert.alert('Error', 'Failed to delete device');
-                        }
-                    },
-                },
-            ]
-        );
-    };
+    const getStatusIcon = (status: WaterQualityStatus): keyof typeof Ionicons.glyphMap =>
+        status === 'SAFE' ? 'checkmark-circle' : 'warning';
 
-    const getStatusColor = (status: Device['status']) => {
-        switch (status) {
-            case 'ACTIVE':
-                return '#4CAF50';
-            case 'WARNING':
-                return '#FFA000';
-            case 'INACTIVE':
-                return '#F44336';
-            default:
-                return '#999';
-        }
-    };
-
-    const renderDevice = ({ item }: { item: Device }) => (
-        <View style={styles.deviceCard}>
+    const renderDevice = ({ item }: { item: WaterQualityData & { deviceId: string } }) => (
+        <View style={[styles.deviceCard, { borderLeftColor: getStatusColor(item.status), borderLeftWidth: 4 }]}>
             <View style={styles.deviceHeader}>
-                <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
+                <View style={[styles.statusIcon, { backgroundColor: getStatusBg(item.status) }]}>
+                    <Ionicons name={getStatusIcon(item.status)} size={22} color={getStatusColor(item.status)} />
+                </View>
                 <View style={styles.deviceInfo}>
-                    <Text style={styles.deviceName}>{item.name}</Text>
                     <Text style={styles.deviceId}>{item.deviceId}</Text>
+                    <Text style={styles.deviceTime}>
+                        Last update: {item.recordedAt
+                            ? new Date(item.recordedAt).toLocaleString([], {
+                                  month: 'short', day: 'numeric',
+                                  hour: '2-digit', minute: '2-digit',
+                              })
+                            : 'N/A'}
+                    </Text>
                 </View>
-                <View style={styles.deviceActions}>
-                    <TouchableOpacity style={styles.actionButton} onPress={() => openEditModal(item)}>
-                        <Ionicons name="pencil" size={18} color="#4169E1" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton} onPress={() => handleDelete(item)}>
-                        <Ionicons name="trash" size={18} color="#F44336" />
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-            <View style={styles.deviceDetails}>
-                <View style={styles.detailRow}>
-                    <Ionicons name="location-outline" size={16} color="#666" />
-                    <Text style={styles.detailText}>{item.location}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                    <Ionicons name="time-outline" size={16} color="#666" />
-                    <Text style={styles.detailText}>
-                        Last reading: {item.lastReading ? new Date(item.lastReading).toLocaleString() : 'N/A'}
+                <View style={[styles.statusBadge, { backgroundColor: getStatusBg(item.status) }]}>
+                    <Text style={[styles.statusBadgeText, { color: getStatusColor(item.status) }]}>
+                        {item.status}
                     </Text>
                 </View>
             </View>
 
-            <View style={styles.statusBadge}>
-                <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-                    {item.status}
-                </Text>
+            <View style={styles.paramsGrid}>
+                <View style={styles.paramItem}>
+                    <Text style={styles.paramLabel}>pH</Text>
+                    <Text style={styles.paramValue}>{item.ph?.toFixed(2) ?? '--'}</Text>
+                </View>
+                <View style={styles.paramItem}>
+                    <Text style={styles.paramLabel}>Temp</Text>
+                    <Text style={styles.paramValue}>{item.temperature?.toFixed(1) ?? '--'}°C</Text>
+                </View>
+                <View style={styles.paramItem}>
+                    <Text style={styles.paramLabel}>TDS</Text>
+                    <Text style={styles.paramValue}>{item.tds?.toFixed(0) ?? '--'} ppm</Text>
+                </View>
+                <View style={styles.paramItem}>
+                    <Text style={styles.paramLabel}>Turbidity</Text>
+                    <Text style={styles.paramValue}>{item.turbidity?.toFixed(1) ?? '--'} NTU</Text>
+                </View>
             </View>
+
+            {item.approachingUnsafe && item.status === 'SAFE' && (
+                <View style={styles.warningBanner}>
+                    <Ionicons name="alert-circle-outline" size={14} color="#F57C00" />
+                    <Text style={styles.warningText}>Parameters approaching unsafe limits</Text>
+                </View>
+            )}
         </View>
     );
 
@@ -187,48 +125,44 @@ const DevicesScreen = () => {
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
-            {/* Header */}
             <View style={styles.header}>
-                <View>
-                    <Text style={styles.title}>IoT Devices</Text>
-                    <Text style={styles.subtitle}>Manage monitoring stations</Text>
-                </View>
-                <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
-                    <Ionicons name="add" size={24} color="#fff" />
-                </TouchableOpacity>
+                <Text style={styles.title}>Device Monitor</Text>
+                <Text style={styles.subtitle}>Real-time per-device SAFE / UNSAFE status</Text>
             </View>
 
-            {/* Stats */}
-            <View style={styles.statsContainer}>
+            <View style={styles.statsRow}>
                 <View style={styles.statCard}>
-                    <Text style={styles.statValue}>{devices.length}</Text>
+                    <Text style={styles.statValue}>{allDevices.length}</Text>
                     <Text style={styles.statLabel}>Total</Text>
                 </View>
                 <View style={styles.statCard}>
-                    <Text style={[styles.statValue, { color: '#4CAF50' }]}>
-                        {devices.filter(d => d.status === 'ACTIVE').length}
-                    </Text>
-                    <Text style={styles.statLabel}>Active</Text>
+                    <Text style={[styles.statValue, { color: '#4CAF50' }]}>{safeCount}</Text>
+                    <Text style={styles.statLabel}>Safe</Text>
                 </View>
                 <View style={styles.statCard}>
-                    <Text style={[styles.statValue, { color: '#FFA000' }]}>
-                        {devices.filter(d => d.status === 'WARNING').length}
-                    </Text>
-                    <Text style={styles.statLabel}>Warning</Text>
-                </View>
-                <View style={styles.statCard}>
-                    <Text style={[styles.statValue, { color: '#F44336' }]}>
-                        {devices.filter(d => d.status === 'INACTIVE').length}
-                    </Text>
-                    <Text style={styles.statLabel}>Inactive</Text>
+                    <Text style={[styles.statValue, { color: '#D32F2F' }]}>{unsafeCount}</Text>
+                    <Text style={styles.statLabel}>Unsafe</Text>
                 </View>
             </View>
 
-            {/* Device List */}
+            <View style={styles.filterRow}>
+                {(['ALL', 'SAFE', 'UNSAFE'] as StatusFilter[]).map((f) => (
+                    <TouchableOpacity
+                        key={f}
+                        style={[styles.filterTab, filter === f && styles.filterTabActive]}
+                        onPress={() => setFilter(f)}
+                    >
+                        <Text style={[styles.filterTabText, filter === f && styles.filterTabTextActive]}>
+                            {f}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+
             <FlatList
-                data={devices}
+                data={filteredDevices}
                 renderItem={renderDevice}
-                keyExtractor={(item) => item.id.toString()}
+                keyExtractor={(item) => item.deviceId}
                 contentContainerStyle={styles.listContent}
                 refreshControl={
                     <RefreshControl
@@ -242,309 +176,108 @@ const DevicesScreen = () => {
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                         <Ionicons name="hardware-chip-outline" size={64} color="#CCC" />
-                        <Text style={styles.emptyText}>No devices registered</Text>
-                        <Text style={styles.emptySubtext}>Tap + to add your first device</Text>
+                        <Text style={styles.emptyText}>
+                            {filter === 'ALL' ? 'No device data received yet' : `No ${filter} devices`}
+                        </Text>
+                        <Text style={styles.emptySubtext}>Data appears once devices send readings</Text>
                     </View>
                 }
             />
-
-            {/* Add/Edit Modal */}
-            <Modal
-                animationType="slide"
-                transparent={true}
-                visible={modalVisible}
-                onRequestClose={() => setModalVisible(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>
-                                {editingDevice ? 'Edit Device' : 'Add New Device'}
-                            </Text>
-                            <TouchableOpacity onPress={() => setModalVisible(false)}>
-                                <Ionicons name="close" size={24} color="#333" />
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.formGroup}>
-                            <Text style={styles.label}>Device ID *</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="e.g., ESP32-001"
-                                value={formData.deviceId}
-                                onChangeText={(text) => setFormData({ ...formData, deviceId: text })}
-                            />
-                        </View>
-
-                        <View style={styles.formGroup}>
-                            <Text style={styles.label}>Name *</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="e.g., Station A"
-                                value={formData.name}
-                                onChangeText={(text) => setFormData({ ...formData, name: text })}
-                            />
-                        </View>
-
-                        <View style={styles.formGroup}>
-                            <Text style={styles.label}>Location *</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="e.g., Shaniwar Wada, Pune"
-                                value={formData.location}
-                                onChangeText={(text) => setFormData({ ...formData, location: text })}
-                            />
-                        </View>
-
-                        <View style={styles.formRow}>
-                            <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-                                <Text style={styles.label}>Latitude</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="18.5204"
-                                    keyboardType="numeric"
-                                    value={formData.latitude ? formData.latitude.toString() : ''}
-                                    onChangeText={(text) => setFormData({ ...formData, latitude: parseFloat(text) || 0 })}
-                                />
-                            </View>
-                            <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                                <Text style={styles.label}>Longitude</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="73.8567"
-                                    keyboardType="numeric"
-                                    value={formData.longitude ? formData.longitude.toString() : ''}
-                                    onChangeText={(text) => setFormData({ ...formData, longitude: parseFloat(text) || 0 })}
-                                />
-                            </View>
-                        </View>
-
-                        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-                            <Text style={styles.submitButtonText}>
-                                {editingDevice ? 'Update Device' : 'Add Device'}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
         </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#FAFAFA',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#FAFAFA',
-    },
+    container: { flex: 1, backgroundColor: '#FAFAFA' },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FAFAFA' },
     header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
         paddingHorizontal: 24,
         paddingTop: 16,
-        paddingBottom: 24,
-        backgroundColor: '#fff',
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        color: '#1a1a1a',
-    },
-    subtitle: {
-        fontSize: 14,
-        color: '#666',
-        marginTop: 2,
-    },
-    addButton: {
-        width: 48,
-        height: 48,
-        backgroundColor: '#4169E1',
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#4169E1',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 4,
-    },
-    statsContainer: {
-        flexDirection: 'row',
-        paddingHorizontal: 24,
-        paddingVertical: 16,
+        paddingBottom: 20,
         backgroundColor: '#fff',
         borderBottomWidth: 1,
         borderBottomColor: '#F0F0F0',
     },
-    statCard: {
+    title: { fontSize: 26, fontWeight: 'bold', color: '#1a1a1a' },
+    subtitle: { fontSize: 13, color: '#666', marginTop: 2 },
+    statsRow: {
+        flexDirection: 'row',
+        backgroundColor: '#fff',
+        paddingHorizontal: 20,
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    statCard: { flex: 1, alignItems: 'center' },
+    statValue: { fontSize: 22, fontWeight: 'bold', color: '#1a1a1a' },
+    statLabel: { fontSize: 12, color: '#888', marginTop: 2 },
+    filterRow: {
+        flexDirection: 'row',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+        gap: 8,
+    },
+    filterTab: {
         flex: 1,
+        paddingVertical: 8,
+        borderRadius: 12,
         alignItems: 'center',
+        backgroundColor: '#F5F5F5',
     },
-    statValue: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#1a1a1a',
-    },
-    statLabel: {
-        fontSize: 12,
-        color: '#999',
-        marginTop: 4,
-    },
-    listContent: {
-        padding: 24,
-    },
+    filterTabActive: { backgroundColor: '#EEF2FF' },
+    filterTabText: { fontSize: 13, fontWeight: '600', color: '#999' },
+    filterTabTextActive: { color: '#4169E1' },
+    listContent: { padding: 20 },
     deviceCard: {
         backgroundColor: '#fff',
-        borderRadius: 20,
+        borderRadius: 18,
         padding: 16,
-        marginBottom: 16,
+        marginBottom: 14,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.06,
         shadowRadius: 10,
         elevation: 3,
     },
-    deviceHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    statusDot: {
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        marginRight: 12,
-    },
-    deviceInfo: {
-        flex: 1,
-    },
-    deviceName: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#1a1a1a',
-    },
-    deviceId: {
-        fontSize: 12,
-        color: '#999',
-        marginTop: 2,
-    },
-    deviceActions: {
-        flexDirection: 'row',
-    },
-    actionButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 12,
-        backgroundColor: '#F5F5F5',
+    deviceHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+    statusIcon: {
+        width: 42,
+        height: 42,
+        borderRadius: 14,
         justifyContent: 'center',
         alignItems: 'center',
-        marginLeft: 8,
+        marginRight: 12,
     },
-    deviceDetails: {
-        paddingLeft: 24,
-    },
-    detailRow: {
+    deviceInfo: { flex: 1 },
+    deviceId: { fontSize: 16, fontWeight: 'bold', color: '#1a1a1a' },
+    deviceTime: { fontSize: 12, color: '#999', marginTop: 2 },
+    statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+    statusBadgeText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
+    paramsGrid: {
         flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 6,
-    },
-    detailText: {
-        fontSize: 13,
-        color: '#666',
-        marginLeft: 8,
-    },
-    statusBadge: {
-        position: 'absolute',
-        top: 16,
-        right: 16,
-    },
-    statusText: {
-        fontSize: 11,
-        fontWeight: '700',
-        letterSpacing: 0.5,
-    },
-    emptyContainer: {
-        alignItems: 'center',
-        paddingTop: 60,
-    },
-    emptyText: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#333',
-        marginTop: 16,
-    },
-    emptySubtext: {
-        fontSize: 14,
-        color: '#999',
-        marginTop: 4,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'flex-end',
-    },
-    modalContent: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        padding: 24,
-        maxHeight: '80%',
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 24,
-    },
-    modalTitle: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#1a1a1a',
-    },
-    formGroup: {
-        marginBottom: 16,
-    },
-    formRow: {
-        flexDirection: 'row',
-    },
-    label: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 8,
-    },
-    input: {
-        backgroundColor: '#F5F5F5',
+        backgroundColor: '#FAFAFA',
         borderRadius: 12,
-        padding: 14,
-        fontSize: 16,
-        color: '#333',
-        borderWidth: 1,
-        borderColor: '#E0E0E0',
+        padding: 12,
     },
-    submitButton: {
-        backgroundColor: '#4169E1',
-        borderRadius: 16,
-        padding: 18,
+    paramItem: { flex: 1, alignItems: 'center' },
+    paramLabel: { fontSize: 11, color: '#999', marginBottom: 4 },
+    paramValue: { fontSize: 13, fontWeight: '700', color: '#1a1a1a' },
+    warningBanner: {
+        flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 16,
-        shadowColor: '#4169E1',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 4,
+        backgroundColor: '#FFF3E0',
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        marginTop: 10,
     },
-    submitButtonText: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
+    warningText: { fontSize: 12, color: '#F57C00', marginLeft: 6, fontWeight: '500' },
+    emptyContainer: { alignItems: 'center', paddingTop: 60 },
+    emptyText: { fontSize: 17, fontWeight: 'bold', color: '#333', marginTop: 16 },
+    emptySubtext: { fontSize: 13, color: '#999', marginTop: 4, textAlign: 'center' },
 });
 
 export default DevicesScreen;

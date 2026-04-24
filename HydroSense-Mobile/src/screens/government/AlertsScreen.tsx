@@ -63,20 +63,27 @@ const GovernmentAlerts = () => {
 
     const renderAlert = ({ item }: { item: Alert }) => {
         const isHigh = item.priority === 'HIGH';
+        const isRecovery = !!item.isRecoveryAlert || item.priority === 'LOW';
         const isAcknowledged = !!item.acknowledged;
+
+        const badgeColor = isRecovery ? '#E8F5E9' : isHigh ? '#FFEBEE' : '#FFF3E0';
+        const textColor = isRecovery ? '#388E3C' : isHigh ? '#D32F2F' : '#F57C00';
+        const iconName: keyof typeof Ionicons.glyphMap = isRecovery
+            ? 'checkmark-circle'
+            : isHigh ? 'warning' : 'alert-circle';
 
         return (
             <View style={styles.alertCard}>
                 <View style={styles.cardHeader}>
-                    <View style={[styles.priorityBadge, isHigh ? styles.badgeHigh : styles.badgeMedium]}>
+                    <View style={[styles.priorityBadge, { backgroundColor: badgeColor }]}>
                         <Ionicons
-                            name={isHigh ? "warning" : "alert-circle"}
+                            name={iconName}
                             size={14}
-                            color={isHigh ? "#D32F2F" : "#F57C00"}
+                            color={textColor}
                             style={{ marginRight: 4 }}
                         />
-                        <Text style={[styles.priorityText, isHigh ? styles.textHigh : styles.textMedium]}>
-                            {item.priority}
+                        <Text style={[styles.priorityText, { color: textColor }]}>
+                            {isRecovery ? 'RECOVERY' : item.priority}
                         </Text>
                     </View>
                     <Text style={styles.alertTime}>
@@ -85,6 +92,13 @@ const GovernmentAlerts = () => {
                         })}
                     </Text>
                 </View>
+
+                {item.deviceId && (
+                    <View style={styles.deviceChip}>
+                        <Ionicons name="hardware-chip-outline" size={12} color="#4169E1" />
+                        <Text style={styles.deviceChipText}>Device: {item.deviceId}</Text>
+                    </View>
+                )}
 
                 <Text style={styles.alertMessage}>{item.message}</Text>
 
@@ -278,6 +292,22 @@ const styles = StyleSheet.create({
     },
     textMedium: {
         color: '#EF6C00',
+    },
+    deviceChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#EEF2FF',
+        alignSelf: 'flex-start',
+        borderRadius: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        marginBottom: 8,
+        gap: 4,
+    },
+    deviceChipText: {
+        fontSize: 12,
+        color: '#4169E1',
+        fontWeight: '600',
     },
     alertTime: {
         fontSize: 12,
