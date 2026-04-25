@@ -22,6 +22,7 @@ const ManageAuthoritiesScreen = () => {
     const [authorities, setAuthorities] = useState<UserInfo[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const hasFetched = React.useRef(false);
 
     const [formData, setFormData] = useState<RegisterRequest>({
         fullName: '',
@@ -32,10 +33,12 @@ const ManageAuthoritiesScreen = () => {
         role: 'AUTHORITY',
     });
 
-    const fetchAuthorities = useCallback(async () => {
+    const fetchAuthorities = useCallback(async (force = false) => {
+        if (!force && hasFetched.current) return; // skip redundant fetches
         try {
             const data = await AuthService.listAuthorityUsers();
             setAuthorities(data);
+            hasFetched.current = true;
         } catch (error) {
             console.error('Failed to fetch authorities:', error);
         } finally {
@@ -50,7 +53,7 @@ const ManageAuthoritiesScreen = () => {
 
     const onRefresh = useCallback(() => {
         setRefreshing(true);
-        fetchAuthorities();
+        fetchAuthorities(true); // force refetch on pull-to-refresh
     }, [fetchAuthorities]);
 
     const resetForm = () => {
@@ -75,11 +78,12 @@ const ManageAuthoritiesScreen = () => {
         }
         setSubmitting(true);
         try {
-            await AuthService.createAuthorityAccount(formData);
+            const response = await AuthService.createAuthorityAccount(formData);
+            // Update list locally — no extra API call needed
+            setAuthorities((prev) => [...prev, response.user]);
             Alert.alert('Success', `Authority account created for ${formData.fullName}.`);
             setModalVisible(false);
             resetForm();
-            fetchAuthorities();
         } catch (error: any) {
             Alert.alert('Error', error.response?.data?.message || 'Failed to create account.');
         } finally {
@@ -99,8 +103,9 @@ const ManageAuthoritiesScreen = () => {
                     onPress: async () => {
                         try {
                             await AuthService.deactivateUser(user.id);
+                            // Remove from list locally — no extra API call needed
+                            setAuthorities((prev) => prev.filter((a) => a.id !== user.id));
                             Alert.alert('Done', 'Account deactivated successfully.');
-                            fetchAuthorities();
                         } catch (error) {
                             Alert.alert('Error', 'Failed to deactivate account.');
                         }
