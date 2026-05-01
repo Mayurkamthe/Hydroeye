@@ -66,10 +66,14 @@ const GovernmentDashboard = () => {
         return 'Safe';
     };
 
-    const trendData = historyData.slice(0, 5).reverse().map((item) => ({
-        value: item.ph,
-        label: new Date(item.recordedAt).toLocaleDateString('en-US', { weekday: 'short' }),
-    }));
+    const trendData = historyData
+        .slice(0, 5)
+        .reverse()
+        .filter((item) => item.ph != null && !isNaN(item.ph))
+        .map((item) => ({
+            value: item.ph,
+            label: new Date(item.recordedAt).toLocaleDateString('en-US', { weekday: 'short' }),
+        }));
 
     const deviceEntries = Object.entries(deviceStatusMap);
     const safeDevices = deviceEntries.filter(([, d]) => d.status === 'SAFE');

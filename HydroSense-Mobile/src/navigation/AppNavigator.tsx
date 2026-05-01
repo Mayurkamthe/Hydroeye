@@ -26,6 +26,7 @@ import GovernmentDevices from '../screens/government/DevicesScreen';
 // Super Admin Screens
 import ManageAuthoritiesScreen from '../screens/superadmin/ManageAuthoritiesScreen';
 import SuperAdminProfileScreen from '../screens/superadmin/ProfileScreen';
+import ManageDevicesScreen from '../screens/superadmin/ManageDevicesScreen';
 
 const AuthStack = createStackNavigator();
 const CitizenTabs = createBottomTabNavigator();
@@ -106,6 +107,7 @@ const SuperAdminNavigator = () => (
             tabBarIcon: ({ focused, color, size }) => {
                 let iconName: keyof typeof Ionicons.glyphMap = 'people';
                 if (route.name === 'Authorities') iconName = focused ? 'people' : 'people-outline';
+                else if (route.name === 'Devices') iconName = focused ? 'hardware-chip' : 'hardware-chip-outline';
                 else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
                 return <Ionicons name={iconName} size={size} color={color} />;
             },
@@ -116,6 +118,7 @@ const SuperAdminNavigator = () => (
         })}
     >
         <SuperAdminTabs.Screen name="Authorities" component={ManageAuthoritiesScreen} />
+        <SuperAdminTabs.Screen name="Devices" component={ManageDevicesScreen} />
         <SuperAdminTabs.Screen name="Profile" component={SuperAdminProfileScreen} />
     </SuperAdminTabs.Navigator>
 );

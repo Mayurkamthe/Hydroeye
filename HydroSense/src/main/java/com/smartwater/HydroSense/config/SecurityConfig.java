@@ -59,8 +59,10 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         // Super Admin only endpoints
                         .requestMatchers("/api/v1/auth/super-admin/**").hasRole("SUPER_ADMIN")
+                        // Device management - SUPER_ADMIN and AUTHORITY
+                        .requestMatchers("/api/v1/devices/**").hasAnyRole("AUTHORITY", "SUPER_ADMIN")
                         // Authority only endpoints
-                        .requestMatchers("/api/v1/histogram/**").hasRole("AUTHORITY")
+                        .requestMatchers("/api/v1/histogram/**").hasAnyRole("AUTHORITY", "SUPER_ADMIN")
                         .requestMatchers("/api/v1/alerts/authority/**").hasRole("AUTHORITY")
                         // Shared Authority/Citizen endpoints
                         .requestMatchers("/api/v1/water/history/**").hasAnyRole("AUTHORITY", "CITIZEN")

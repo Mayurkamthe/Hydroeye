@@ -27,7 +27,7 @@ public class DeviceController {
      * Get all devices
      */
     @GetMapping
-    @PreAuthorize("hasRole('AUTHORITY')")
+    @PreAuthorize("hasAnyRole('AUTHORITY','SUPER_ADMIN')")
     @Operation(summary = "Get all devices", description = "Returns list of all registered IoT devices")
     public ResponseEntity<List<DeviceResponse>> getAllDevices() {
         return ResponseEntity.ok(deviceService.getAllDevices());
@@ -37,7 +37,7 @@ public class DeviceController {
      * Get device by ID
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('AUTHORITY')")
+    @PreAuthorize("hasAnyRole('AUTHORITY','SUPER_ADMIN')")
     @Operation(summary = "Get device by ID", description = "Returns a specific device by its ID")
     public ResponseEntity<DeviceResponse> getDeviceById(@PathVariable Long id) {
         return ResponseEntity.ok(deviceService.getDeviceById(id));
@@ -47,7 +47,7 @@ public class DeviceController {
      * Create a new device
      */
     @PostMapping
-    @PreAuthorize("hasRole('AUTHORITY')")
+    @PreAuthorize("hasAnyRole('AUTHORITY','SUPER_ADMIN')")
     @Operation(summary = "Create a new device", description = "Register a new IoT device")
     public ResponseEntity<DeviceResponse> createDevice(@Valid @RequestBody CreateDeviceRequest request) {
         return ResponseEntity.ok(deviceService.createDevice(request));
@@ -57,7 +57,7 @@ public class DeviceController {
      * Update an existing device
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('AUTHORITY')")
+    @PreAuthorize("hasAnyRole('AUTHORITY','SUPER_ADMIN')")
     @Operation(summary = "Update a device", description = "Update an existing IoT device")
     public ResponseEntity<DeviceResponse> updateDevice(
             @PathVariable Long id,
@@ -69,7 +69,7 @@ public class DeviceController {
      * Delete a device
      */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('AUTHORITY')")
+    @PreAuthorize("hasAnyRole('AUTHORITY','SUPER_ADMIN')")
     @Operation(summary = "Delete a device", description = "Remove an IoT device from the system")
     public ResponseEntity<?> deleteDevice(@PathVariable Long id) {
         deviceService.deleteDevice(id);

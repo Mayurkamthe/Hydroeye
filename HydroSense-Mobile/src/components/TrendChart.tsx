@@ -10,29 +10,38 @@ interface TrendChartProps {
 }
 
 const TrendChart: React.FC<TrendChartProps> = ({ data, title }) => {
+    // Filter out null/undefined/NaN values to prevent chart crash
+    const safeData = (data ?? []).filter(
+        (d) => d && typeof d.value === 'number' && !isNaN(d.value)
+    );
+
     return (
         <View style={styles.container}>
             <Text style={styles.title}>{title} Trend (Last 5 Days)</Text>
             <View style={styles.chartWrapper}>
-                <LineChart
-                    data={data}
-                    color="#0077B6"
-                    thickness={3}
-                    dataPointsColor="#0077B6"
-                    startFillColor="rgba(0, 119, 182, 0.3)"
-                    endFillColor="rgba(0, 119, 182, 0.01)"
-                    startOpacity={0.9}
-                    endOpacity={0.2}
-                    initialSpacing={20}
-                    noOfSections={4}
-                    yAxisColor="lightgray"
-                    xAxisColor="lightgray"
-                    yAxisTextStyle={{ color: 'gray' }}
-                    width={width - 80}
-                    height={200}
-                    curved
-                    isAnimated
-                />
+                {safeData.length === 0 ? (
+                    <Text style={styles.noData}>No data available</Text>
+                ) : (
+                    <LineChart
+                        data={safeData}
+                        color="#0077B6"
+                        thickness={3}
+                        dataPointsColor="#0077B6"
+                        startFillColor="rgba(0, 119, 182, 0.3)"
+                        endFillColor="rgba(0, 119, 182, 0.01)"
+                        startOpacity={0.9}
+                        endOpacity={0.2}
+                        initialSpacing={20}
+                        noOfSections={4}
+                        yAxisColor="lightgray"
+                        xAxisColor="lightgray"
+                        yAxisTextStyle={{ color: 'gray' }}
+                        width={width - 80}
+                        height={200}
+                        curved
+                        isAnimated
+                    />
+                )}
             </View>
         </View>
     );
@@ -60,6 +69,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',
+    },
+    noData: {
+        fontSize: 14,
+        color: '#999',
+        paddingVertical: 40,
+        textAlign: 'center',
     },
 });
 
